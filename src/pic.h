@@ -43,6 +43,7 @@ class Pic
 		Dir GetDir()							{return dir;}
 		int GetM()								{return M;}
 		int GetN()								{return N;}
+		double GetEnergy();
 		void Initrem();
 		void Recover(Color cx, Color cy);
 		void GetSeam();
@@ -53,8 +54,8 @@ class Pic
 		Dir dir;
 		void UpdateEnergy();
 		std::vector<std::vector<pix>> data;
-		std::vector<std::vector<int>> remX;
-		std::vector<std::vector<int>> remY;
+		std::vecter<std::vector<int>> Rempos;
+		std::vector<std::vector<Dir>> Remdir;
 		int seamhead;
 };
 
