@@ -38,13 +38,13 @@ class Pic
 		void Shrink();
 		void Expand();
 		void SetColor(int i, int j, Color c)	{data[i][j].c = c;}
-		Color GetColor(int i, int j)			{return data[i][j].c;}
+		Color GetColor(int i, int j) const;
 		void SetDir(Dir d)						{dir = d;}
-		Dir GetDir()							{return dir;}
-		int GetM()								{return M;}
-		int GetN()								{return N;}
-		double GetEnergy();
-		void Initrem();
+		Dir GetDir()	const					{return dir;}
+		int GetM()	const						{return M;}
+		int GetN()	const						{return N;}
+		double GetEnergy() const;
+		void Addrem();
 		void Recover(Color cx, Color cy);
 		void GetSeam();
 		void Cutting();
@@ -53,9 +53,10 @@ class Pic
 		int m, n, M, N;
 		Dir dir;
 		void UpdateEnergy();
+		double Sobel(int i, int j) const;
 		std::vector<std::vector<pix>> data;
-		std::vecter<std::vector<int>> Rempos;
-		std::vector<std::vector<Dir>> Remdir;
+		std::vector<std::vector<int>> Rempos;
+		std::vector<Dir> Remdir;
 		int seamhead;
 };
 

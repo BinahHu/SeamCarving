@@ -1,7 +1,14 @@
 #include "pic.h"
 #include "lodepng.h"
 #include <vector>
+#include <cmath>
 #include <omp.h>
+#include <iostream>
+using std::cout;
+using std::endl;
+using std::cin;
+using std::fabs;
+using std::abs;
 
 const double INF = 1e9;
 
@@ -16,6 +23,13 @@ Pic::Pic(int _m, int _n, Dir _dir)
         for(int i = 0; i < m; i++)
 			data[i].resize(n);
     }
+}
+
+Color Pic::GetColor(int i, int j) const
+{
+	if(i < 0 || i >= m || j < 0 || j >= n)
+		return Color();
+	return data[i][j].c;
 }
 
 void Pic::Remove(int i, int j)
@@ -61,45 +75,38 @@ void Pic::Expand()
 
 void Pic::Recover(Color cx, Color cy)
 {
-	int SX = remX.size(), SY = remY.size();
-	for(int k = 0; k < SY; k++)
+	int S = Rempos.size();
+	for(int k = S - 1; k >= 0; k--)
 	{
-		m++;
-#pragma parallel for
-		for(int j = 0; j < n; j++)
+		if(Remdir[k] == X)
 		{
-			for(int i = m - 1; i > remY[j][SY - k - 1]; i--)
-				data[i][j] = data[i-1][j];
-			data[remY[j][SY - k - 1]][j].c = cy;
+			n++;
+#pragma omp parallel for
+			for(int i = 0; i < m; i++)
+			{
+				for(int j = n - 1; j > Rempos[k][i]; j--)
+					data[i][j] = data[i][j-1];
+				data[i][Rempos[k][i]].c = cx;
+			}
 		}
-	}
-	for(int k = 0; k < SX; k++)
-	{
-		n++;
-#pragma parallel for
-		for(int i = 0; i < m; i++)
+		else
 		{
-			for(int j = n - 1; j > remX[i][SX - k - 1]; j--)
-				data[i][j] = data[i][j-1];
-			data[i][remX[i][SX - k - 1]].c = cx;
-		}	
+			m++;
+#pragma omp parallel for
+			for(int j = 0; j < n; j++)
+			{
+				for(int i = m - 1; i > Rempos[k][j]; i--)
+					data[i][j] = data[i-1][j];
+				data[Rempos[k][j]][j].c = cy;
+			}	
+		}
 	}
 }
 
-void Pic::Initrem()
+void Pic::Addrem()
 {
-	if(dir == X)
-	{
-		remX.resize(m);
-		for(int i = 0; i < m; i++)
-			remX[i].resize(n);
-	}
-	else
-	{
-		remY.resize(m);
-		for(int i = 0; i < m; i++)
-			remY[i].resize(n);
-	}
+	Rempos.push_back(std::vector<int>(std::max(m, n)));
+	Remdir.push_back(dir);
 }
 
 void Pic::GetSeam()
@@ -108,7 +115,7 @@ void Pic::GetSeam()
 	if(dir == X)
 	{
 		for(int i = 1; i < m; i++)
-#pragma parallel for
+#pragma omp parallel for
 			for(int j = 0; j < n; j++)
 			{
 				double e1,e2,e3;
@@ -139,8 +146,8 @@ void Pic::GetSeam()
 	}
 	else
 	{
-		for(int j = 0; j < n; j++)
-#pragma parallel for
+		for(int j = 1; j < n; j++)
+#pragma omp parallel for
 			for(int i = 0; i < m; i++)
 			{
 				double e1,e2,e3;
@@ -172,6 +179,8 @@ void Pic::GetSeam()
 
 void Pic::Cutting()
 {
+	Addrem();
+	int num = Rempos.size() - 1;
 	int ind = -1, next = seamhead;
 	if(dir == X)
 	{
@@ -180,6 +189,7 @@ void Pic::Cutting()
 			ind = next;
 			next = data[i][ind].pre;
 			Remove(i, ind);
+			Rempos[num][i] = ind;
 		}
 	}
 	else
@@ -189,6 +199,7 @@ void Pic::Cutting()
 			ind = next;
 			next = data[ind][j].pre;
 			Remove(ind, j);
+			Rempos[num][j] = ind;
 		}	
 	}
 }
@@ -196,13 +207,30 @@ void Pic::Cutting()
 void Pic::Booming()
 {}
 
+double Pic::Sobel(int i0, int j0) const
+{
+	double ex[3] = {0.0}, ey[3] = {0.0};
+	for(int i = -1; i <= 1; i++)
+		for(int j = -1; j <= 1; j++)
+		{
+			Color c =  GetColor(i+i0, j+j0);
+			ex[0] += c.r * i * (2 - abs(j));
+			ex[1] += c.g * i * (2 - abs(j));
+			ex[2] += c.b * i * (2 - abs(j));
+			ey[0] += c.r * j * (2 - abs(i));
+			ey[1] += c.g * j * (2 - abs(i));
+			ey[2] += c.b * j * (2 - abs(i));
+		}
+	return fabs(ex[0]) + fabs(ex[1]) + fabs(ex[2]) + fabs(ey[0]) + fabs(ey[1]) + fabs(ey[2]);
+}
+
 void Pic::UpdateEnergy()
 {
-#pragma parallel for
+#pragma omp parallel for
 	for(int i = 0; i < m; i++)
 		for(int j = 0; j < n; j++)
 		{
-			data[i][j].e = 0;
+			data[i][j].e = Sobel(i,j);	
 		}
 }
 
@@ -214,28 +242,29 @@ void Pic::Input(string file)
     unsigned error = lodepng::decode(image, w, h, file, LCT_RGB);
     M = m = h;N = n = w;
 	data.clear();
+    data.resize(m);
     for(int i = 0; i < m; i++)
     {
-        data.push_back(std::vector<pix>());
+		data[i].resize(n);
         for(int j = 0; j < n; j++)
         {
-			data[i].push_back(pix());
-            data[i][j].c.r = image[(i * m + j) * 3 + 0];
-            data[i][j].c.g = image[(i * m + j) * 3 + 1];
-            data[i][j].c.b = image[(i * m + j) * 3 + 2];
+            data[i][j].c.r = image[(i * n + j) * 3 + 0];
+            data[i][j].c.g = image[(i * n + j) * 3 + 1];
+            data[i][j].c.b = image[(i * n + j) * 3 + 2];
         }
     }
 }
 
 void Pic::Output(string file)
 {
+	file = "../output/"  + file;
     std::vector<unsigned char> image(m * n * 3);
     for(int i = 0; i < m; i++)
         for(int j = 0; j < n; j++)
         {
-            image[(i * m + j) * 3 + 0] = data[i][j].c.r;
-            image[(i * m + j) * 3 + 1] = data[i][j].c.g;
-            image[(i * m + j) * 3 + 2] = data[i][j].c.b;
+            image[(i * n + j) * 3 + 0] = data[i][j].c.r;
+            image[(i * n + j) * 3 + 1] = data[i][j].c.g;
+            image[(i * n + j) * 3 + 2] = data[i][j].c.b;
         }
     unsigned error = lodepng::encode(file, image, n, m, LCT_RGB);
 }

@@ -14,16 +14,24 @@ Pic* LoadPic(string file)
 
 void SeamCarving(Pic* p, double prec, string name)
 {
-	double CutM = int(p->GetM() * prec);
-	double CutN = int(p->GetN() * prec);
+	int CutX = p->GetN() * prec;
+	int CutY = p->GetM() * prec;
 	cout << "Begin X Cutting..." << endl;
 	p->SetDir(X);
-	for(int i = 0; i < CutM; i++)
+	for(int i = 0; i < CutX; i++)
+	{
+		p->GetSeam();
 		p->Cutting();
+		p->Shrink();
+	}
 	cout << "Begin Y Cutting..." << endl;
 	p->SetDir(Y);
-	for(int i = 0; i < CutN; i++)
+	for(int i = 0; i < CutY; i++)
+	{
+		p->GetSeam();
 		p->Cutting();
+		p->Shrink();
+	}
 	cout << "Cutting over, begin output..." << endl;
 	p->Output(name + "Cut.png");
 	cout << "Output over, begin recover..." << endl;
