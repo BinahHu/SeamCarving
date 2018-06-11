@@ -5,3 +5,4 @@ src/CMakeCache.txt
 src/cmake_install.cmake
 Makefile
 *.swp
+zip.sh
