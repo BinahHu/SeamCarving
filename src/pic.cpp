@@ -14,16 +14,63 @@ const double INF = 1e9;
 
 Pic::Pic(int _m, int _n, Dir _dir)
 {
-    m = _m;
-    n = _n;
+    M = _m;
+    N = _n;
 	dir = _dir;
-    if(m!= 0 && n!= 0)
+    if(M!= 0 && N!= 0)
     {
-		data.resize(m);
-        for(int i = 0; i < m; i++)
-			data[i].resize(n);
+		data.resize(M);
+        for(int i = 0; i < M; i++)
+			data[i].resize(N);
     }
 }
+
+Pic* Pic::clone()
+{
+	Pic* p = new Pic(m, n, dir);
+	p->m = m;
+	p->n = n;
+	p->data = data;
+	p->Rempos = Rempos;
+	p->Remdir = Remdir;
+	p->seamhead = seamhead;
+	return p;
+}
+
+void Pic::SetDel(string name)
+{
+    string file = "../input/" + name + "del.png";
+    std::vector<unsigned char> image;
+    unsigned w, h;
+    unsigned error = lodepng::decode(image, w, h, file, LCT_GREY);
+    if(error != 0)return;
+    cout << "Load delete file" << endl;
+    for(int i = 0; i < m; i++)
+        for(int j = 0; j < n; j++)
+            if(image[i * n + j] < 250)
+            {
+                data[i][j].mode = del;
+                data[i][j].e = -INF;
+            }
+}
+
+void Pic::SetProt(string name)
+{
+    string file = "../input/" + name + "prot.png";
+    std::vector<unsigned char> image;
+    unsigned w, h;
+    unsigned error = lodepng::decode(image, w, h, file, LCT_GREY);
+    if(error != 0)return;
+    cout << "Load protect file" << endl;
+    for(int i = 0; i < m; i++)
+        for(int j = 0; j < n; j++)
+            if(image[i * n + j] < 250)
+            {
+                data[i][j].mode = prot;
+                data[i][j].e = INF;
+            }
+}
+
 
 Color Pic::GetColor(int i, int j) const
 {
@@ -42,14 +89,43 @@ void Pic::Remove(int i, int j)
 			data[k][j] = data[k + 1][j];
 }
 
-void Pic::Copy(int i, int j)
+void Pic::Copy(int i, int j, bool set, Color c)
 {
 	if(dir == X)
+	{
 		for(int k = n - 1; k > j; k--)
 			data[i][k] = data[i][k-1];
+		if(set)
+			data[i][j].c = c;
+		else
+		{
+			Color c1 = GetColor(i, j-1);
+			Color c2 = data[i][j].c;
+			Color c3 = GetColor(i, j+1);
+			int ar = c1.r + c2.r + c3.r;
+			int ag = c1.g + c2.g + c3.g;
+			int ab = c1.b + c2.b + c3.b;
+			data[i][j].c = Color(ar / 3, ag / 3, ab / 3);
+		}
+	}
 	else
+	{
 		for(int k = m - 1; k > i; k--)
 			data[k][j] = data[k-1][j];
+		if(set)
+			data[i][j].c = c;
+		else
+		{
+			Color c1 = GetColor(i-1, j);
+			Color c2 = data[i][j].c;
+			Color c3 = GetColor(i+1, j);
+			int ar = c1.r + c2.r + c3.r;
+			int ag = c1.g + c2.g + c3.g;
+			int ab = c1.b + c2.b + c3.b;
+			data[i][j].c = Color(ar / 3, ag / 3, ab / 3);
+		}
+
+	}
 }
 
 void Pic::Shrink()
@@ -69,7 +145,7 @@ void Pic::Expand()
 	else
 	{
 		m++;
-		data.push_back(std::vector<pix>());
+		data.push_back(std::vector<pix>(n));
 	}
 }
 
@@ -98,8 +174,26 @@ void Pic::Recover(Color cx, Color cy)
 				for(int i = m - 1; i > Rempos[k][j]; i--)
 					data[i][j] = data[i-1][j];
 				data[Rempos[k][j]][j].c = cy;
-			}	
+			}
 		}
+	}
+}
+
+void Pic::ExpMark(Color cx, Color cy, Pic* p)
+{
+	int S = p->Rempos.size();
+	for(int k = 0; k < S; k++)
+	{
+		dir = p->Remdir[k];
+		Expand();
+		if(dir == X)
+#pragma omp parallel for
+			for(int i = 0; i < m; i++)
+				Copy(i, p->Rempos[k][i], true, cx);
+		else
+#pragma omp parallel for
+			for(int j = 0; j < n; j++)
+				Copy(p->Rempos[k][j], j, true, cy);
 	}
 }
 
@@ -173,7 +267,7 @@ void Pic::GetSeam()
 			{
 				mine = data[i][n-1].e;
 				seamhead = i;
-			}			
+			}
 	}
 }
 
@@ -193,20 +287,43 @@ void Pic::Cutting()
 		}
 	}
 	else
-	{	
+	{
 		for(int j = n-1; j >= 0; j--)
 		{
 			ind = next;
 			next = data[ind][j].pre;
 			Remove(ind, j);
 			Rempos[num][j] = ind;
-		}	
+		}
 	}
 }
 
 void Pic::Booming()
-{}
-
+{
+	Addrem();
+	int num = Rempos.size() - 1;
+	int ind = -1, next = seamhead;
+	if(dir == X)
+	{
+		for(int i = m-1; i >= 0; i--)
+		{
+			ind = next;
+			next = data[i][ind].pre;
+			Copy(i, ind);
+			Rempos[num][i] = ind;
+		}
+	}
+	else
+	{
+		for(int j = n-1; j >= 0; j--)
+		{
+			ind = next;
+			next = data[ind][j].pre;
+			Copy(ind, j);
+			Rempos[num][j] = ind;
+		}
+	}
+}
 double Pic::Sobel(int i0, int j0) const
 {
 	double ex[3] = {0.0}, ey[3] = {0.0};
@@ -230,7 +347,8 @@ void Pic::UpdateEnergy()
 	for(int i = 0; i < m; i++)
 		for(int j = 0; j < n; j++)
 		{
-			data[i][j].e = Sobel(i,j);	
+            if(data[i][j].mode == normal)
+			         data[i][j].e = Sobel(i,j);
 		}
 }
 

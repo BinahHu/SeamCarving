@@ -13,6 +13,13 @@ enum Dir
 	Y = 1,
 };
 
+enum Mode
+{
+	normal = 0,
+	del = 1,
+	prot = 2,
+};
+
 struct Color
 {
 	byte r,g,b;
@@ -21,10 +28,11 @@ struct Color
 
 struct pix
 {
-	pix(Color _c = Color(), double _e = 0.0, int _p = -1) : c(_c), e(_e), pre(_p)	{}
+	pix(Color _c = Color(), double _e = 0.0, int _p = -1, Mode _m = normal) : c(_c), e(_e), pre(_p), mode(_m)	{}
 	Color c;
 	double e;
 	int pre;
+	Mode mode;
 };
 
 class Pic
@@ -34,9 +42,10 @@ class Pic
 		void Input(string file);
 		void Output(string file);
 		void Remove(int i, int j);
-		void Copy(int i, int j);
+		void Copy(int i, int j, bool set = false, Color c = Color());
 		void Shrink();
 		void Expand();
+		Pic* clone();
 		void SetColor(int i, int j, Color c)	{data[i][j].c = c;}
 		Color GetColor(int i, int j) const;
 		void SetDir(Dir d)						{dir = d;}
@@ -46,9 +55,12 @@ class Pic
 		double GetEnergy() const;
 		void Addrem();
 		void Recover(Color cx, Color cy);
+		void ExpMark(Color cx, Color cy, Pic* p);
 		void GetSeam();
 		void Cutting();
 		void Booming();
+		void SetDel(string name);
+		void SetProt(string name);
 	private:
 		int m, n, M, N;
 		Dir dir;
