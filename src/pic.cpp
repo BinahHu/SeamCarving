@@ -178,7 +178,7 @@ void Pic::Recover(Color cx, Color cy)
 		}
 	}
 }
-
+/*
 void Pic::ExpMark(Color cx, Color cy, Pic* p)
 {
 	int S = p->Rempos.size();
@@ -196,7 +196,7 @@ void Pic::ExpMark(Color cx, Color cy, Pic* p)
 				Copy(p->Rempos[k][j], j, true, cy);
 	}
 }
-
+*/
 void Pic::Addrem()
 {
 	Rempos.push_back(std::vector<int>(std::max(m, n)));
@@ -298,7 +298,7 @@ void Pic::Cutting()
 	}
 }
 
-void Pic::Booming()
+void Pic::Booming(Color cx, Color cy, Pic* org)
 {
 	Addrem();
 	int num = Rempos.size() - 1;
@@ -309,7 +309,8 @@ void Pic::Booming()
 		{
 			ind = next;
 			next = data[i][ind].pre;
-			Copy(i, ind);
+			Copy(i, ind, true, cx);
+			org->Copy(i, ind);
 			Rempos[num][i] = ind;
 		}
 	}
@@ -319,7 +320,8 @@ void Pic::Booming()
 		{
 			ind = next;
 			next = data[ind][j].pre;
-			Copy(ind, j);
+			Copy(ind, j, true, cy);
+			org->Copy(ind, j);
 			Rempos[num][j] = ind;
 		}
 	}

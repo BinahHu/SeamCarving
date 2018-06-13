@@ -55,10 +55,9 @@ class Pic
 		double GetEnergy() const;
 		void Addrem();
 		void Recover(Color cx, Color cy);
-		void ExpMark(Color cx, Color cy, Pic* p);
 		void GetSeam();
 		void Cutting();
-		void Booming();
+		void Booming(Color cx, Color cy, Pic* org);
 		void SetDel(string name);
 		void SetProt(string name);
 	private:
